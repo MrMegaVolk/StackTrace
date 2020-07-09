@@ -22,19 +22,20 @@ void process(QString str) {
             qDebug() << QThread::currentThreadId() << str;
             mutex.unlock();
         }
+        throw 1;
         QThread::sleep(3);
     }
     aeTrace();
 }
 
-void empt(QString str) {
-    aTrace("void empt(QString str)");
+void on1(QString str) {
+    aTrace("void one(QString str)");
     process(str);
     aeTrace();
 }
-void tempt(QString str) {
-    aTrace("void tempt(QString str)");
-    empt(str);
+void on2(QString str) {
+    aTrace("void one(QString str)");
+    on1(str);
     aeTrace();
 }
 
@@ -44,68 +45,64 @@ void one(QString str) {
     process(str);
     aeTrace();
 }
-
 void two(QString str) {
     aTrace("void two(QString str)");
     nmTrace("second thread");
-    empt(str);
+    on1(str);
     aeTrace();
 }
-
 void three(QString str) {
+    qDebug() << __FUNCTION__;
     aTrace("void three(QString str)");
     nmTrace("third thread");
-    tempt(str);
+    on2(str);
     aeTrace();
 }
 
+// Я знаю о существовании __FUNCTION__ но тут я хотел так попробывать
+// через доп. массив, дабы строки у одной и той же фун-ции были разные
 static int gindx = 0;
 QMutex mutex2;
-int cnt = 1000 - 1; // -1 т.к. главный тред тоже учитывается
-int deep = 1000 - 1; // по причине, что функция test уже в стеке
+unsigned int cnt = 10 - 1; // -1 т.к. главный тред тоже учитывается
+unsigned int deep = 1000 - 2; // по причине, что функция test уже в стеке
+void test2(unsigned int i) {
+    aTrace(functArr[gindx++]); // можно без мьютекса, не столь важно какая строка будет
+    if (i < deep)
+        test2(i+1);
+    aeTrace();
+}
+
 void test() {
-    mutex.lock();
-    mutex.unlock();
-    //std::cout << std::this_thread::get_id() << " ";
     aTrace("void test()");
     nmTrace("test thread");
-    for (int j=0;j<deep;j++) { // 1000 дабы не переполнить стек
-        //aTrace("some string may be toooooooo loooooooong");
-        //mutex2.lock();
-        aTrace(functArr[gindx++]); // можно без мьютекса, не столь важно какая строка будет
-        //mutex2.unlock();
-    }
-    for (int j=0;j<deep;j++) { // 1000 дабы не переполнить стек
-        aeTrace();
-    }
+    test2(0);
     aeTrace();
 }
 
 using namespace std::chrono;
 int main()
 {
+    aTrace("int main()");
+    nmTrace("mainThread");
     if (true) {
-        functArr = new char*[cnt*deep];
-        for (int i = 0; i < cnt*deep; i++) {
+        functArr = new char*[cnt*deep]; // заполняем псевдостатичный массив для рекурсии
+        for (int i = 0; i < cnt*deep; i++) { // чтобы в стек падали разные строки
             char* ch = new char[10];
             itoa(i, ch, 10);
             functArr[i] = ch;
         }
+        QFuture<void>* f = new QFuture<void>[cnt];
+        
         unsigned __int64 right = duration_cast<milliseconds>(
             system_clock::now().time_since_epoch()).count();
-        aTrace("int main()");
-        nmTrace("mainThread");
-        mutex.lock();
-        
-        QFuture<void>* f = new QFuture<void>[cnt];
-        for (int i = 0; i < cnt; i++) // кол-во повторов!
+        for (unsigned int i = 0; i < cnt; i++) // кол-во повторов!
             f[i] = QtConcurrent::run(test);
-        mutex.unlock();
-        for (int i = 0; i < cnt; i++)
-            f->waitForFinished();
+        for (unsigned int i = 0; i < cnt; i++) // ждём все треды
+            f[i].waitForFinished();
         unsigned __int64 left = duration_cast<milliseconds>(
             system_clock::now().time_since_epoch()).count();
-        std::cout << std::endl;
+        
+        std::cout << std::endl; // сводка
         std::cout << left << " ms" << std::endl;
         std::cout << right << " ms" << std::endl;
         std::cout << (left - right) << " ms" << std::endl;

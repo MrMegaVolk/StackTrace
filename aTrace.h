@@ -9,6 +9,13 @@
 
 #define nmTrace(str) stackTrace::nameTrace(std::this_thread::get_id(), str)
 
+#define aTraceTry(str) \
+    stackTrace::pushTrace(std::this_thread::get_id(), __FILE__, str, __LINE__); \
+    try {
+#define aeTraceCatch() } catch(...) { \
+    throw; \
+    } stackTrace::popTrace(std::this_thread::get_id())
+
 #define aTrace(str) stackTrace::pushTrace(std::this_thread::get_id(), __FILE__, str, __LINE__)
 #define aeTrace() stackTrace::popTrace(std::this_thread::get_id())
 
@@ -138,19 +145,6 @@ namespace stackTrace
     static void printTrace() {
         insertMutex.lock();
         std::cout << "Stack trace with all threads:" << std::endl;
-        //for (auto elem : threadmap) {
-        //    if (elem.last == -1) {
-        //        //std::cout << "\t\tIs Empty!" << std::endl;
-        //        continue;
-        //    }
-        //    std::cout << "\t" << elem.name << std::endl;
-        //    for (int i = 0; i < MAX_TRACE_DEPTH; i++) {
-        //        std::cout << "\t\t" << elem.files[i] << std::endl;
-        //        std::cout << "\t\t\t" << elem.funct[i] << " on line " << elem.lines[i] << std::endl;
-        //        if (i+1 > elem.last)
-        //            break;
-        //    }
-        //}
         for (int j=0; j<MAX_TRACE_COUNT; j++) {
             char* prev = nullptr;
             if (threadmap[j].last == -1) {
